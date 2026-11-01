@@ -1,0 +1,29 @@
+# Rollback - redeploy an earlier image by hand (Actions tab -> Run workflow).
+name: Rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        type: choice
+        options: [staging, production]
+      commit:
+        description: "Commit SHA of the image to restore"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}   # production rollback also needs approval
+    steps:
+      - name: Redeploy the earlier image
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+          IMAGE: ghcr.io/${{ github.repository_owner }}/vetcare:${{ inputs.commit }}
+        run: |
+          mkdir -p ~/.kube && echo "$KUBE_CONFIG" | base64 -d > ~/.kube/config
+          kubectl set image deployment/vetcare vetcare="$IMAGE"
+          kubectl rollout status deployment/vetcare --timeout=180s
